@@ -81,7 +81,7 @@ graph LR
     B --> F
     G[IntaSend Payment Gateway] --> B
     
-##Future Enhancements
+## Future Enhancements
 
   1. Advanced product search and filtering.
 
