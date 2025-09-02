@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>FarmConnect - Farmer Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col">
+
+  <!-- Navbar -->
+  <header class="bg-green-700 text-white p-4 flex justify-between items-center">
+    <h1 class="text-xl font-bold">FarmConnect - Farmer Dashboard</h1>
+    <div class="space-x-2">
+      <button onclick="Marketplace()" class="bg-blue-500 px-3 py-1 rounded">Marketplace</button>
+      <button onclick="Orders()" class="bg-yellow-500 px-3 py-1 rounded">Orders</button>
+      <button onclick="logOut()" class="bg-red-500 px-3 py-1 rounded">Logout</button>
+    </div>
+  </header>
+
+  <!-- Main Section -->
+  <main class="flex-1 p-6">
+    <h2 id="form-title" class="text-lg font-semibold mb-4">Add New Product</h2>
+    
+    <!-- Product Form -->
+    <div class="bg-white p-6 rounded shadow-md mb-6">
+      <input id="product-name" type="text" placeholder="Product Name" class="w-full p-2 border rounded mb-2">
+      <textarea id="product-description" placeholder="Description" class="w-full p-2 border rounded mb-2"></textarea>
+      <input id="product-price" type="number" placeholder="Price (KES)" class="w-full p-2 border rounded mb-2">
+
+      <!-- Category Dropdown -->
+      <select id="product-category" class="w-full p-2 border rounded mb-2">
+        <option value="">All Categories</option>
+        <option value="Vegetables">Vegetables</option>
+        <option value="Fruits">Fruits</option>
+        <option value="Grains">Grains</option>
+      </select>
+
+      <!-- Image Upload -->
+      <label class="block mb-2">Upload Image:</label>
+      <input id="product-image" type="file" accept="image/*" class="w-full p-2 border rounded mb-2">
+
+      <button id="submit-btn" onclick="addProduct()" class="bg-green-600 text-white px-4 py-2 rounded">Add Product</button>
+      <button id="cancel-edit" onclick="cancelEdit()" class="hidden bg-gray-400 text-white px-4 py-2 rounded ml-2">Cancel</button>
+      <p id="status" class="text-red-500 mt-2"></p>
+    </div>
+
+    <!-- Product List -->
+    <h2 class="text-lg font-semibold mb-4">My Products</h2>
+    <div id="product-list" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
+  </main>
+
+  <!-- ✅ Footer -->
+   <footer class="bg-green-700 text-white text-center py-4 mt-auto">
+    <p class="text-sm">© 2025 FarmConnect. All rights reserved.</p>
+    <p class="text-xs">🌱 Empowering Farmers • Connecting Communities.</p>
+  </footer>
+
+  <script>
+    // Auto update year in footer
+    document.getElementById("year").textContent = new Date().getFullYear();
+
+    // Supabase Setup
+    const SUPABASE_URL = "https://issfiqbqejaeepsrusuk.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlzc2ZpcWJxZWphZWVwc3J1c3VrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0NjEzODEsImV4cCI6MjA3MjAzNzM4MX0.O_LV4YhEGE9-NI1qdyMTlyVYEjSYJTxdzPjpZ-8vqPA";
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let currentUser = null;
+    let editingProductId = null;
+
+    // ✅ Check user on load
+    window.onload = async () => {
+      const { data } = await supabaseClient.auth.getUser();
+      if (!data.user) {
+        window.location.href = "index.html";
+      } else {
+        currentUser = data.user;
+        loadProducts();
+      }
+    };
+
+    // ✅ Upload Image to Supabase Storage
+    async function uploadImage(file) {
+      if (!file) return null;
+      const fileName = `${Date.now()}-${file.name}`;
+      const { data, error } = await supabaseClient.storage
+        .from("product-images")
+        .upload(fileName, file);
+
+      if (error) {
+        console.error("Image upload error:", error.message);
+        return null;
+      }
+
+      // Get public URL
+      const { data: urlData } = supabaseClient.storage.from("product-images").getPublicUrl(fileName);
+      return urlData.publicUrl;
+    }
+
+    // ✅ Add Product
+    async function addProduct() {
+      const name = document.getElementById("product-name").value.trim();
+      const description = document.getElementById("product-description").value.trim();
+      const price = parseFloat(document.getElementById("product-price").value);
+      const category = document.getElementById("product-category").value;
+      const fileInput = document.getElementById("product-image");
+      const file = fileInput.files[0];
+
+      if (!name || !price) {
+        document.getElementById("status").innerText = "❌ Name and Price are required.";
+        return;
+      }
+
+      let image_url = null;
+      if (file) {
+        image_url = await uploadImage(file);
+      }
+
+      const { error } = await supabaseClient.from("products").insert([{
+        farmer_id: currentUser.id,
+        name,
+        description,
+        price,
+        category,
+        image_url
+      }]);
+
+      if (error) {
+        document.getElementById("status").innerText = "❌ " + error.message;
+      } else {
+        document.getElementById("status").innerText = "✅ Product added successfully!";
+        resetForm();
+        loadProducts();
+      }
+    }
+
+    // ✅ Edit Product
+    function editProduct(product) {
+      editingProductId = product.id;
+      document.getElementById("form-title").innerText = "Edit Product";
+      document.getElementById("submit-btn").innerText = "Update Product";
+      document.getElementById("submit-btn").onclick = updateProduct;
+      document.getElementById("cancel-edit").classList.remove("hidden");
+
+      document.getElementById("product-name").value = product.name;
+      document.getElementById("product-description").value = product.description || "";
+      document.getElementById("product-price").value = product.price;
+      document.getElementById("product-category").value = product.category || "";
+    }
+
+    // ✅ Update Product
+    async function updateProduct() {
+      const name = document.getElementById("product-name").value.trim();
+      const description = document.getElementById("product-description").value.trim();
+      const price = parseFloat(document.getElementById("product-price").value);
+      const category = document.getElementById("product-category").value;
+      const fileInput = document.getElementById("product-image");
+      const file = fileInput.files[0];
+
+      let image_url = null;
+      if (file) {
+        image_url = await uploadImage(file);
+      }
+
+      const updateData = { name, description, price, category };
+      if (image_url) updateData.image_url = image_url;
+
+      const { error } = await supabaseClient
+        .from("products")
+        .update(updateData)
+        .eq("id", editingProductId)
+        .eq("farmer_id", currentUser.id);
+
+      if (error) {
+        document.getElementById("status").innerText = "❌ " + error.message;
+      } else {
+        document.getElementById("status").innerText = "✅ Product updated successfully!";
+        resetForm();
+        loadProducts();
+      }
+    }
+
+    // ✅ Cancel Edit
+    function cancelEdit() {
+      resetForm();
+    }
+
+    // ✅ Reset form
+    function resetForm() {
+      editingProductId = null;
+      document.getElementById("form-title").innerText = "Add New Product";
+      document.getElementById("submit-btn").innerText = "Add Product";
+      document.getElementById("submit-btn").onclick = addProduct;
+      document.getElementById("cancel-edit").classList.add("hidden");
+
+      document.getElementById("product-name").value = "";
+      document.getElementById("product-description").value = "";
+      document.getElementById("product-price").value = "";
+      document.getElementById("product-category").value = "";
+      document.getElementById("product-image").value = "";
+    }
+
+    // ✅ Load Products
+    async function loadProducts() {
+      const { data } = await supabaseClient
+        .from("products")
+        .select("*")
+        .eq("farmer_id", currentUser.id);
+
+      const productList = document.getElementById("product-list");
+      productList.innerHTML = "";
+
+      if (data && data.length > 0) {
+        data.forEach(product => {
+          const card = document.createElement("div");
+          card.className = "bg-white p-4 rounded shadow flex flex-col justify-between";
+
+          card.innerHTML = `
+            ${product.image_url ? `<img src="${product.image_url}" class="w-full h-40 object-cover rounded mb-2">` : ""}
+            <div>
+              <h3 class="font-bold">${product.name}</h3>
+              <p>${product.description || ""}</p>
+              <p class="text-green-600 font-semibold">KES ${product.price}</p>
+              <p class="text-gray-500">Category: ${product.category || "Uncategorized"}</p>
+            </div>
+            <div class="flex space-x-2 mt-3">
+              <button onclick='editProduct(${JSON.stringify(product)})' class="bg-yellow-500 text-white px-3 py-1 rounded">Edit</button>
+              <button onclick="deleteProduct('${product.id}')" class="bg-red-500 text-white px-3 py-1 rounded">Delete</button>
+            </div>
+          `;
+          productList.appendChild(card);
+        });
+      } else {
+        productList.innerHTML = "<p class='text-gray-600'>No products yet.</p>";
+      }
+    }
+
+    // ✅ Delete Product
+    async function deleteProduct(id) {
+      if (!confirm("Are you sure you want to delete this product?")) return;
+      await supabaseClient.from("products").delete().eq("id", id).eq("farmer_id", currentUser.id);
+      loadProducts();
+    }
+
+    // ✅ Navigation
+    function Marketplace() {
+      window.location.href = "marketplace.html";
+    }
+    function Orders() {
+      window.location.href = "farmers_order.html";
+    }
+    function logOut() {
+      window.location.href = "index.html";
+    }
+
+  </script>
+
+</body>
+</html>
+
+
+
+

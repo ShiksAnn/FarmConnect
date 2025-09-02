@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FarmConnect - Cart</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <script src="https://unpkg.com/intasend-inlinejs-sdk@3.0.0/build/intasend-inline.js"></script>
+  <style>
+    body {
+      margin: 0; font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #f1f8f4, #e6f4ea);
+      display: flex; flex-direction: column; min-height: 100vh;
+    }
+    header { background: #2e7d32; padding: 15px; color: white; text-align: center; position: relative; }
+    header a { position: absolute; left: 20px; top: 50%; transform: translateY(-50%); color: white; text-decoration: none; font-size: 1.1rem; }
+    h1 { margin: 0; }
+    .cart-container { flex: 1; padding: 20px; max-width: 900px; margin: auto; display: flex; flex-direction: column; gap: 20px; }
+    .cart-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #ffffffcc; border-radius: 12px; box-shadow: 0 3px 10px rgba(0,0,0,0.1); flex-wrap: wrap; gap: 15px; }
+    .cart-item div { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .cart-item h3 { margin: 0; font-size: 1.1rem; }
+    .cart-item .price { font-weight: bold; color: #2e7d32; }
+    .quantity-controls { display: flex; align-items: center; gap: 5px; }
+    .quantity-controls input { width: 50px; text-align: center; padding: 5px; border: 1px solid #ccc; border-radius: 6px; }
+    .quantity-controls button { padding: 5px 10px; font-size: 0.9rem; border-radius: 6px; border: none; cursor: pointer; background: #388e3c; color: white; transition: background 0.3s; }
+    .quantity-controls button:hover { background: #1b5e20; }
+    .remove-btn { background: transparent; color: #e53935; font-size: 1.2rem; }
+    .remove-btn:hover { color: #b71c1c; }
+    .total { text-align: right; font-size: 1.3rem; font-weight: bold; }
+    .related-section { margin-top: 30px; }
+    .related-section h2 { font-size: 1.2rem; margin-bottom: 10px; }
+    .related-products { display: flex; gap: 15px; flex-wrap: wrap; }
+    .related-item { background: #ffffffcc; padding: 15px; border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); width: 200px; text-align: center; }
+    .related-item h4 { margin: 0; font-size: 1rem; }
+    .related-item p { margin: 5px 0; color: #2e7d32; font-weight: bold; }
+    .related-item button { background: #2e7d32; color: white; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; }
+    .related-item button:hover { background: #1b5e20; }
+    footer { background: #2e7d32; color: white; text-align: center; padding: 12px; margin-top: auto; }
+    .empty-cart { text-align: center; padding: 50px 0; font-size: 1.2rem; color: #555; }
+    #payButton, #recipeButton { padding: 12px 20px; background: #388e3c; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; margin: 10px auto; display: block; }
+    #payButton:disabled { background: #ccc; cursor: not-allowed; }
+    #recipeBox { background: #fff; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="marketplace.html">← Back to Marketplace</a>
+    <h1>🛒 Your Cart</h1>
+  </header>
+
+  <div class="cart-container" id="cart-container"></div>
+
+  <button id="payButton">Pay Now</button>
+  <button id="recipeButton" style="display:none;">Get Recipe Ideas 🍳</button>
+  <div class="cart-container" id="recipeBox" style="display:none;"></div>
+
+  <div class="cart-container related-section">
+    <h2>🌟 You may also like</h2>
+    <div class="related-products" id="related-products"></div>
+  </div>
+
+  <footer>
+    <p class="text-sm">© 2025 FarmConnect. All rights reserved.</p>
+    <p class="text-xs">🌱 Empowering Farmers • Connecting Communities.</p>
+  </footer>
+
+  <script>
+    // --- Product + Cart Data ---
+    const allProducts = [
+      { id: 1, name: "Tomatoes", price: 100 },
+      { id: 2, name: "Onions", price: 80 },
+      { id: 3, name: "kales", price: 50 },
+      { id: 4, name: "banana", price: 120 },
+      { id: 5, name: "Carrots", price: 90 },
+      { id: 6, name: "Spinach", price: 60 }
+    ];
+
+    const productRecommendations = {
+      1: [2, 3],
+      2: [1, 5],
+      4: [5, 6],
+    };
+
+    function getCart() { return JSON.parse(localStorage.getItem("cart")) || []; }
+
+    function saveCart(cart) {
+      localStorage.setItem("cart", JSON.stringify(cart));
+      updateCartCount();
+      updatePayButton();
+      renderRecommendations();
+      updateRecipeButton();
+    }
+
+    function updateCartCount() {
+      const cart = getCart();
+      const count = cart.reduce((sum, item) => sum + item.quantity, 0);
+      const cartCountElement = document.getElementById('cart-count');
+      if (cartCountElement) cartCountElement.textContent = count;
+    }
+
+    function renderCart() {
+      const container = document.getElementById("cart-container");
+      const cart = getCart();
+      container.innerHTML = "";
+
+      if (cart.length === 0) {
+        container.innerHTML = '<p class="empty-cart">Your cart is empty 🛒</p>';
+        document.getElementById("related-products").innerHTML = "";
+        document.getElementById("recipeButton").style.display = "none";
+        document.getElementById("recipeBox").style.display = "none";
+        return;
+      }
+
+      let total = 0;
+      cart.forEach(item => {
+        total += item.price * item.quantity;
+        const div = document.createElement("div");
+        div.className = "cart-item";
+        div.innerHTML = `
+          <div>
+            <h3>${item.name}</h3>
+            <p class="price">KES ${item.price}</p>
+          </div>
+          <div class="quantity-controls">
+            <button onclick="changeQuantity(${item.id}, -1)">-</button>
+            <input type="number" min="1" value="${item.quantity}" onchange="manualQuantity(${item.id}, this.value)">
+            <button onclick="changeQuantity(${item.id}, 1)">+</button>
+            <button class="remove-btn" onclick="removeItem(${item.id})"><i class="fa-solid fa-trash"></i></button>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+
+      const totalDiv = document.createElement("div");
+      totalDiv.className = "total";
+      totalDiv.textContent = `Total: KES ${total}`;
+      container.appendChild(totalDiv);
+
+      renderRecommendations();
+      updateRecipeButton();
+    }
+
+    function changeQuantity(id, delta) {
+      const cart = getCart();
+      const item = cart.find(i => i.id === id);
+      if (item) {
+        item.quantity += delta;
+        if (item.quantity <= 0) { removeItem(id); return; }
+        saveCart(cart);
+        renderCart();
+      }
+    }
+
+    function manualQuantity(id, value) {
+      let qty = parseInt(value);
+      if (isNaN(qty) || qty < 1) qty = 1;
+      const cart = getCart();
+      const item = cart.find(i => i.id === id);
+      if (item) {
+        item.quantity = qty;
+        saveCart(cart);
+        renderCart();
+      }
+    }
+
+    function removeItem(id) {
+      let cart = getCart();
+      cart = cart.filter(i => i.id !== id);
+      saveCart(cart);
+      renderCart();
+    }
+
+    function addToCart(id) {
+      const cart = getCart();
+      const product = allProducts.find(p => p.id === id);
+      if (!product) return;
+      const existing = cart.find(i => i.id === id);
+      if (existing) existing.quantity += 1;
+      else cart.push({ ...product, quantity: 1 });
+      saveCart(cart);
+      renderCart();
+    }
+
+    function updatePayButton() {
+      const cart = getCart();
+      const totalAmount = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const payButton = document.getElementById('payButton');
+
+      if (totalAmount === 0) {
+        payButton.disabled = true;
+        payButton.textContent = 'Cart is empty';
+      } else {
+        payButton.disabled = false;
+        payButton.textContent = `Pay KES ${totalAmount}`;
+        payButton.onclick = async () => {
+          const orderRes = await fetch("http://localhost:5000/api/create-order", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cart, totalAmount })
+          });
+          const orderData = await orderRes.json();
+          if (!orderData.success) { alert("Error creating order. Try again."); return; }
+
+          new window.IntaSend({ publicAPIKey: "ISPubKey_test_3fa6817d-38e0-4b52-bc49-4868b4b01108", live: false })
+            .on("COMPLETE", async (response) => {
+              console.log("Payment completed:", response);
+              await fetch("http://localhost:5000/api/verify-payment", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ orderId: orderData.orderId, trxRef: response.invoice_id })
+              });
+              alert("Payment successful ✅");
+              localStorage.removeItem("cart");
+              window.location.href = "orders.html";
+            })
+            .on("FAILED", (response) => { console.error("Payment failed:", response); alert("Payment failed ❌"); })
+            .on("CLOSED", () => { console.log("Checkout closed"); })
+            .checkout({ amount: totalAmount, currency: "KES", email: "buyer@email.com", first_name: "John", last_name: "Shee" });
+        };
+      }
+    }
+
+    // --- AI Product Recommendations ---
+    function renderRecommendations() {
+      const cart = getCart();
+      const container = document.getElementById("related-products");
+      container.innerHTML = "";
+      if (cart.length === 0) return;
+
+      let suggested = new Set();
+      cart.forEach(item => {
+        if (productRecommendations[item.id]) productRecommendations[item.id].forEach(pid => suggested.add(pid));
+      });
+      if (suggested.size === 0) allProducts.forEach(p => { if (!cart.some(c => c.id === p.id)) suggested.add(p.id); });
+
+      suggested.forEach(pid => {
+        const product = allProducts.find(p => p.id === pid);
+        if (!product) return;
+        const div = document.createElement("div");
+        div.className = "related-item";
+        div.innerHTML = `<h4>${product.name}</h4><p>KES ${product.price}</p><button onclick="addToCart(${product.id})">Add to Cart</button>`;
+        container.appendChild(div);
+      });
+    }
+
+    // --- AI Recipe Generator ---
+    function updateRecipeButton() {
+      const cart = getCart();
+      const btn = document.getElementById("recipeButton");
+      btn.style.display = cart.length > 0 ? "block" : "none";
+    }
+
+    function generateRecipe(ingredients) {
+      const recipes = [];
+      if (ingredients.includes("Tomatoes") && ingredients.includes("Onions")) recipes.push("🍲 Tomato-Onion Stew: Fry onions, add tomatoes, simmer, then serve with ugali or rice.");
+      if (ingredients.includes("Spinach") || ingredients.includes("kales")) recipes.push("🥬 Green Sauté: Lightly fry onions, add spinach/kales, season with salt, serve warm.");
+      if (ingredients.includes("banana")) recipes.push("🍌 Banana Smoothie: Blend banana with milk/water. Add honey if available.");
+      if (ingredients.includes("Carrots")) recipes.push("🥗 Carrot Salad: Grate carrots, mix with onions and lemon juice for a fresh salad.");
+      if (recipes.length === 0) recipes.push(`🥘 Mix Dish: Combine ${ingredients.join(", ")} into a simple stir-fry or salad.`);
+      return recipes;
+    }
+
+    document.getElementById("recipeButton").addEventListener("click", () => {
+      const cart = getCart();
+      const ingredients = cart.map(i => i.name);
+      const box = document.getElementById("recipeBox");
+      if (ingredients.length === 0) { box.style.display = "block"; box.innerText = "Add some items to your cart to see recipe ideas."; return; }
+      const ideas = generateRecipe(ingredients);
+      box.style.display = "block";
+      box.innerHTML = "<h3>🍳 Recipe Ideas</h3><ul>" + ideas.map(r => `<li>${r}</li>`).join("") + "</ul>";
+    });
+
+    renderCart();
+    updatePayButton();
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+

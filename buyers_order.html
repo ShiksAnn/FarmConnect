@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>FarmConnect - My Orders</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js"></script>
+</head>
+<body class="bg-yellow-50 min-h-screen flex flex-col">
+
+  <!-- Navbar -->
+  <header class="bg-yellow-600 text-white p-4 flex justify-between items-center shadow-md">
+    <h1 class="text-2xl font-bold">🛒 My Orders</h1>
+    <nav>
+      <a href="marketplace.html" class="px-3">Marketplace</a>
+      <button onclick="logOut()" class="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg">Logout</button>
+    </nav>
+  </header>
+
+  <!-- Orders Table -->
+  <main class="flex-1 p-6">
+    <h2 class="text-xl font-semibold mb-6 text-yellow-800">📋 Order History</h2>
+    <div class="overflow-x-auto bg-white shadow rounded-lg">
+      <table class="min-w-full border border-gray-200">
+        <thead class="bg-yellow-100">
+          <tr>
+            <th class="px-4 py-2 border">Order ID</th>
+            <th class="px-4 py-2 border">Product</th>
+            <th class="px-4 py-2 border">Quantity</th>
+            <th class="px-4 py-2 border">Status</th>
+            <th class="px-4 py-2 border">Date</th>
+          </tr>
+        </thead>
+        <tbody id="my-orders-table" class="divide-y divide-gray-200"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <script>
+    const SUPABASE_URL = "https://issfiqbqejaeepsrusuk.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlzc2ZpcWJxZWphZWVwc3J1c3VrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0NjEzODEsImV4cCI6MjA3MjAzNzM4MX0.O_LV4YhEGE9-NI1qdyMTlyVYEjSYJTxdzPjpZ-8vqPA";
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let currentUser = null;
+
+    window.onload = async () => {
+      const { data } = await supabaseClient.auth.getUser();
+      if (!data.user) {
+        window.location.href = "index.html";
+        return;
+      }
+      currentUser = data.user;
+
+      const { data: profile } = await supabaseClient
+        .from("profiles")
+        .select("role")
+        .eq("id", currentUser.id)
+        .single();
+
+      if (!profile || profile.role !== "buyer") {
+        alert("Unauthorized!");
+        window.location.href = "index.html";
+        return;
+      }
+
+      loadMyOrders();
+    };
+
+    async function loadMyOrders() {
+      const { data: orders } = await supabaseClient
+        .from("orders")
+        .select("id, quantity, status, created_at, products(name)")
+        .eq("buyer_id", currentUser.id)
+        .order("created_at", { ascending: false });
+
+      const table = document.getElementById("my-orders-table");
+      table.innerHTML = "";
+
+      if (orders) {
+        orders.forEach(order => {
+          table.innerHTML += `
+            <tr>
+              <td class="px-4 py-2 border">${order.id.slice(0, 6)}...</td>
+              <td class="px-4 py-2 border">${order.products?.name || "N/A"}</td>
+              <td class="px-4 py-2 border">${order.quantity}</td>
+              <td class="px-4 py-2 border">
+                <span class="px-2 py-1 rounded text-sm ${
+                  order.status === "pending"
+                    ? "bg-yellow-200 text-yellow-800"
+                    : order.status === "paid"
+                    ? "bg-blue-200 text-blue-800"
+                    : "bg-green-200 text-green-800"
+                }">${order.status}</span>
+              </td>
+              <td class="px-4 py-2 border">${new Date(order.created_at).toLocaleString()}</td>
+            </tr>
+          `;
+        });
+      }
+    }
+
+    async function LogOut() {
+      await supabaseClient.auth.signOut();
+      localStorage.clear();
+      window.location.href = "index.html";
+    }
+  </script>
+
+    <footer class="bg-green-700 text-white text-center py-4 mt-auto">
+    <p class="text-sm">© 2025 FarmConnect. All rights reserved.</p>
+    <p class="text-xs">🌱 Empowering Farmers • Connecting Communities.</p>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>FarmConnect - Profile</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col">
+
+  <!-- Navbar -->
+  <header class="bg-green-700 text-white p-4 flex justify-between items-center">
+    <h1 class="text-xl font-bold">FarmConnect - Profile</h1>
+    <button onclick="logOut()" class="bg-red-500 px-3 py-1 rounded">Logout</button>
+  </header>
+
+  <!-- Profile Form -->
+  <main class="flex-1 p-6 flex justify-center items-start">
+    <div class="w-full max-w-lg bg-white rounded-2xl shadow-lg p-6 space-y-4">
+      <h2 class="text-xl font-semibold">Your Profile</h2>
+
+      <label class="block">Full Name</label>
+      <input id="full_name" type="text" class="w-full p-2 border rounded">
+
+      <label class="block">Role</label>
+      <select id="role" class="w-full p-2 border rounded">
+        <option value="farmer">Farmer</option>
+        <option value="buyer">Buyer</option>
+      </select>
+
+      <label class="block">Contact</label>
+      <input id="contact" type="text" class="w-full p-2 border rounded">
+
+      <label class="block">Location</label>
+      <input id="location" type="text" class="w-full p-2 border rounded">
+
+      <label class="block">Bio</label>
+      <textarea id="bio" rows="3" class="w-full p-2 border rounded"></textarea>
+
+      <button onclick="updateProfile()" class="w-full bg-green-600 text-white p-2 rounded">Save Changes</button>
+      <p id="status" class="text-center text-sm mt-2 text-gray-600"></p>
+    </div>
+  </main>
+
+  <script>
+    // Supabase Setup
+    const SUPABASE_URL = "https://issfiqbqejaeepsrusuk.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlzc2ZpcWJxZWphZWVwc3J1c3VrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0NjEzODEsImV4cCI6MjA3MjAzNzM4MX0.O_LV4YhEGE9-NI1qdyMTlyVYEjSYJTxdzPjpZ-8vqPA";
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let currentUser = null;
+
+    // ✅ Load user profile on page load
+    window.onload = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (!data.user) {
+        window.location.href = "index.html";
+      } else {
+        currentUser = data.user;
+        loadProfile();
+      }
+    };
+
+    // ✅ Load profile data
+    async function loadProfile() {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("full_name, role, contact, location, bio")
+        .eq("id", currentUser.id)
+        .single();
+
+      if (data) {
+        document.getElementById("full_name").value = data.full_name || "";
+        document.getElementById("role").value = data.role || "buyer";
+        document.getElementById("contact").value = data.contact || "";
+        document.getElementById("location").value = data.location || "";
+        document.getElementById("bio").value = data.bio || "";
+      }
+    }
+
+    // ✅ Update profile
+    async function updateProfile() {
+      const fullName = document.getElementById("full_name").value;
+      const role = document.getElementById("role").value;
+      const contact = document.getElementById("contact").value;
+      const location = document.getElementById("location").value;
+      const bio = document.getElementById("bio").value;
+
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          full_name: fullName,
+          role: role,
+          contact: contact,
+          location: location,
+          bio: bio
+        })
+        .eq("id", currentUser.id);
+
+      if (error) {
+        document.getElementById("status").innerText = error.message;
+      } else {
+        document.getElementById("status").innerText = "Profile updated successfully ✅";
+      }
+    }
+
+    // ✅ Logout
+    async function logOut() {
+      await supabase.auth.signOut();
+      window.location.href = "index.html";
+    }
+  </script>
+
+  <footer class="bg-green-700 text-white text-center py-4 mt-auto">
+    <p class="text-sm">© 2025 FarmConnect. All rights reserved.</p>
+    <p class="text-xs">🌱 Empowering Farmers • Connecting Communities.</p>
+  </footer>
+
+</body>
+</html>

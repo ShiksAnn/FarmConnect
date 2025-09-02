@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>FarmConnect - Orders</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col">
+
+  <!-- Navbar -->
+  <header class="bg-green-700 text-white p-4 flex justify-between items-center">
+    <div class="flex items-center gap-4">
+      <h1 class="text-xl font-bold">FarmConnect - Orders</h1>
+      <a href="marketplace.html" class="bg-white text-green-700 px-3 py-1 rounded hover:bg-gray-100">
+        Back to Marketplace
+      </a>
+    </div>
+    <button onclick="logOut()" class="bg-red-500 px-3 py-1 rounded hover:bg-red-600">Logout</button>
+  </header>
+
+  <!-- Orders -->
+  <main class="flex-1 p-6">
+    <h2 id="orders-title" class="text-lg font-semibold mb-4">Your Orders</h2>
+    <div id="orders-list" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-green-700 text-white text-center p-4 mt-auto">
+    <p>© 2025 FarmConnect | Fresh from Farmers to You 🥬🍅</p>
+  </footer>
+
+  <script>
+    // ✅ Supabase Setup
+    const SUPABASE_URL = "https://issfiqbqejaeepsrusuk.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlzc2ZpcWJxZWphZWVwc3J1c3VrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0NjEzODEsImV4cCI6MjA3MjAzNzM4MX0.O_LV4YhEGE9-NI1qdyMTlyVYEjSYJTxdzPjpZ-8vqPA";
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let currentUser = null;
+    let currentRole = null;
+
+    // ✅ Check user on load
+    window.onload = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (!data.user) {
+        window.location.href = "index.html"; // Redirect if not logged in
+      } else {
+        currentUser = data.user;
+
+        // get profile for role
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", currentUser.id)
+          .single();
+
+        currentRole = profile?.role;
+
+        if (currentRole === "farmer") {
+          document.getElementById("orders-title").innerText = "Your Sales (Orders on Your Products)";
+          loadFarmerOrders();
+        } else {
+          document.getElementById("orders-title").innerText = "Your Order History";
+          loadBuyerOrders();
+        }
+      }
+    };
+
+    // ✅ Load Farmer Orders
+    async function loadFarmerOrders() {
+      const productIds = await getFarmerProductIds();
+      const { data, error } = await supabase
+        .from("orders")
+        .select("id, quantity, status, products(name, price), buyer_id, profiles!orders_buyer_id_fkey(full_name)")
+        .in("product_id", productIds);
+
+      displayOrders(data || [], "farmer");
+    }
+
+    // Helper: get farmer's product IDs
+    async function getFarmerProductIds() {
+      const { data } = await supabase
+        .from("products")
+        .select("id")
+        .eq("farmer_id", currentUser.id);
+      return data ? data.map(p => p.id) : [];
+    }
+
+    // ✅ Load Buyer Orders
+    async function loadBuyerOrders() {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("id, quantity, status, products(name, price, profiles(full_name))")
+        .eq("buyer_id", currentUser.id);
+
+      displayOrders(data || [], "buyer");
+    }
+
+    // ✅ Display Orders
+    function displayOrders(orders, role) {
+      const list = document.getElementById("orders-list");
+      list.innerHTML = "";
+
+      if (orders.length === 0) {
+        list.innerHTML = "<p>No orders found.</p>";
+        return;
+      }
+
+      orders.forEach(order => {
+        const card = document.createElement("div");
+        card.className = "bg-white p-4 rounded shadow";
+
+        if (role === "farmer") {
+          card.innerHTML = `
+            <h3 class="font-bold">${order.products?.name}</h3>
+            <p>Quantity: ${order.quantity} Kg</p>
+            <p>Total: KES ${order.quantity * order.products?.price}</p>
+            <p>Buyer: ${order.profiles?.full_name || "Unknown"}</p>
+            <p>Status: <span class="font-semibold">${order.status}</span></p>
+            ${order.status === "pending" ? `<button onclick="markCompleted(${order.id})" class="bg-green-600 text-white px-3 py-1 mt-2 rounded">Mark Completed</button>` : ""}
+          `;
+        } else {
+          card.innerHTML = `
+            <h3 class="font-bold">${order.products?.name}</h3>
+            <p>Quantity: ${order.quantity} Kg</p>
+            <p>Total: KES ${order.quantity * order.products?.price}</p>
+            <p>Farmer: ${order.products?.profiles?.full_name || "Unknown"}</p>
+            <p>Status: <span class="font-semibold">${order.status}</span></p>
+          `;
+        }
+
+        list.appendChild(card);
+      });
+    }
+
+    // ✅ Mark Order as Completed
+    async function markCompleted(orderId) {
+      const { error } = await supabase
+        .from("orders")
+        .update({ status: "completed" })
+        .eq("id", orderId);
+
+      if (!error) {
+        loadFarmerOrders();
+      }
+    }
+
+    // ✅ Logout
+    async function logOut() {
+      await supabase.auth.signOut();
+      localStorage.clear(); // optional: clear cart/session data
+      window.location.href = "index.html"; // always redirect to login
+    }
+  </script>
+
+</body>
+</html>
+

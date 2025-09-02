@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FarmConnect</title>
+  <script src="https://unpkg.com/@supabase/supabase-js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      background: url("https://img.freepik.com/free-photo/fresh-tomatoes-greenhouse_342744-1062.jpg") no-repeat center center fixed;
+      background-size: cover;
+      position: relative;
+      color: #333;
+      text-align: center;
+    }
+
+    body::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(255, 255, 255, 0.3);
+      z-index: 0;
+    }
+
+    h1, h2, p, form, .card {
+      position: relative;
+      z-index: 1;
+    }
+
+    h1 {
+      margin-top: 20px;
+      font-size: 2.5rem;
+      color: #2e7d32;
+      text-shadow: 2px 2px 5px rgba(255,255,255,0.6);
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.9);
+      padding: 20px;
+      margin: 20px auto;
+      border-radius: 12px;
+      box-shadow: 0px 6px 15px rgba(0,0,0,0.3);
+      max-width: 350px;
+      text-align: left;
+    }
+
+    input, select, button {
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 1rem;
+    }
+
+    button {
+      background: #388e3c;
+      color: white;
+      border: none;
+      font-size: 1.1rem;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    button:hover {
+      background: #1b5e20;
+    }
+
+    a {
+      color: #2e7d32;
+      text-decoration: none;
+      font-weight: bold;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .hidden { display: none; }
+
+    /* Navbar styles */
+    nav {
+      background: rgba(46, 125, 50, 0.9);
+      color: white;
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: relative;
+      z-index: 2;
+    }
+    nav a {
+      color: white;
+      margin: 0 12px;
+      text-decoration: none;
+      font-weight: bold;
+    }
+    nav a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <!-- 🌱 Shared Navbar -->
+  <nav>
+    <a href="index.html" class="text-2xl font-bold">🌾 FarmConnect</a>
+    <div id="nav-links">
+      <a href="#" onclick="showSection('signup')">Sign Up</a>
+      <a href="#" onclick="showSection('login')">Login</a>
+    </div>
+  </nav>
+
+  <h1>🌱 FarmConnect</h1>
+
+  <!-- Landing Page -->
+  <div id="landing" class="card">
+    <h2>Connecting Farmers and Buyers</h2>
+    <p>Join today and be part of the sustainable food ecosystem.</p>
+    <button onclick="showSection('signup')">Sign Up</button>
+    <button onclick="showSection('login')">Login</button>
+  </div>
+
+  <!-- Signup Form -->
+  <div id="signup" class="card hidden">
+    <h2>Sign Up</h2>
+    <form id="signup-form">
+      <input type="text" id="fullname" placeholder="Full Name" required>
+      <input type="email" id="email" placeholder="Email" required>
+      <input type="password" id="password" placeholder="Password" required>
+
+      <label for="role">Role:</label>
+      <select id="role" required>
+        <option value="farmer">Farmer</option>
+        <option value="buyer">Buyer</option>
+        <option value="admin">Admin</option>
+      </select>
+
+      <button type="submit">Sign Up</button>
+    </form>
+    <p>Already have an account? <a href="#" onclick="showSection('login')">Login</a></p>
+  </div>
+
+  <!-- Login Form -->
+  <div id="login" class="card hidden">
+    <h2>Login</h2>
+    <form id="login-form">
+      <input type="email" id="login-email" placeholder="Email" required>
+      <input type="password" id="login-password" placeholder="Password" required>
+      <button type="submit">Login</button>
+    </form>
+    <p>Don’t have an account? <a href="#" onclick="showSection('signup')">Sign Up</a></p>
+  </div>
+
+  <script>
+    // ✅ Supabase setup
+    const SUPABASE_URL = "https://issfiqbqejaeepsrusuk.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlzc2ZpcWJxZWphZWVwc3J1c3VrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0NjEzODEsImV4cCI6MjA3MjAzNzM4MX0.O_LV4YhEGE9-NI1qdyMTlyVYEjSYJTxdzPjpZ-8vqPA";
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    function showSection(sectionId) {
+      document.getElementById("landing").classList.add("hidden");
+      document.getElementById("signup").classList.add("hidden");
+      document.getElementById("login").classList.add("hidden");
+      document.getElementById(sectionId).classList.remove("hidden");
+    }
+
+    // Signup
+    const signupForm = document.getElementById("signup-form");
+    signupForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fullname = document.getElementById("fullname").value;
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+      const role = document.getElementById("role").value;
+
+      const { data, error } = await supabaseClient.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name: fullname, role: role } }
+      });
+
+      if (error) {
+        alert("❌ Error: " + error.message);
+      } else {
+        alert("✅ Sign up successful! Please login.");
+        showSection("login");
+      }
+    });
+
+    // Login
+    const loginForm = document.getElementById("login-form");
+    loginForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = document.getElementById("login-email").value;
+      const password = document.getElementById("login-password").value;
+
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+      if (error) {
+        alert("❌ Error: " + error.message);
+      } else {
+        const user = data.user;
+        const role = user.user_metadata.role;
+        alert("✅ Logged in as " + role);
+
+        if (role === "farmer") {
+          window.location.href = "farmers_order.html";
+        } else if (role === "buyer") {
+          window.location.href = "marketplace.html";
+        } else if (role === "admin") {
+          window.location.href = "dashboard.html";
+        }
+      }
+    });
+  </script>
+</body>
+</html>
+
+
+
